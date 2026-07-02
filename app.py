@@ -328,22 +328,42 @@ def pill_list(items: Any) -> str:
 def select_active_topic(topics: List[Dict[str, Any]]) -> Optional[str]:
     if not topics:
         return None
+
+    # If there is only one topic, do not show a pointless dropdown.
+    if len(topics) == 1:
+        active_topic = topics[0]
+        st.session_state["active_topic_id"] = active_topic["id"]
+        st.sidebar.markdown("### Active topic")
+        st.sidebar.caption(active_topic["title"])
+        return active_topic["id"]
+
     if "active_topic_id" not in st.session_state:
         st.session_state["active_topic_id"] = topics[0]["id"]
 
-    topic_labels = {f"{t['domain']} · {t['title']}": t["id"] for t in topics}
+    topic_labels = {
+        f"{t['domain']} · {t['title']}": t["id"]
+        for t in topics
+    }
+
     current_label = next(
-        (label for label, tid in topic_labels.items() if tid == st.session_state["active_topic_id"]),
+        (
+            label
+            for label, topic_id in topic_labels.items()
+            if topic_id == st.session_state["active_topic_id"]
+        ),
         list(topic_labels.keys())[0],
     )
+
+    st.sidebar.markdown("### Active topic")
     selected_label = st.sidebar.selectbox(
-        "Active topic",
+        "Choose topic",
         list(topic_labels.keys()),
         index=list(topic_labels.keys()).index(current_label),
+        label_visibility="collapsed",
     )
+
     st.session_state["active_topic_id"] = topic_labels[selected_label]
     return st.session_state["active_topic_id"]
-
 
 def page_home(topics: List[Dict[str, Any]]) -> None:
     st.title("AI Study Assistance")
