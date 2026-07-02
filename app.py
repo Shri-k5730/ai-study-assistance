@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from openai import OpenAI
 from supabase import create_client
-
+import re
 
 st.set_page_config(
     page_title="AI Study Assistance",
@@ -309,6 +309,327 @@ def fallback_evaluation(answer: str) -> Dict[str, Any]:
         "gaps": ["Add sharper trade-offs, failure mode, and decision checklist reasoning."],
     }
 
+@st.cache_resource
+def get_supabase_admin_client():
+    url = secret_value("SUPABASE_URL")
+    key = secret_value("SUPABASE_SECRET_KEY")
+    if not url or not key:
+        raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY. Lesson Factory needs admin write access.")
+    return create_client(url, key)
+
+
+def extract_json_object(text: str) -> Dict[str, Any]:
+    cleaned = text.strip()
+
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```json\s*", "", cleaned)
+        cleaned = re.sub(r"^```\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise ValueError("No valid JSON object found in model response.")
+        return json.loads(cleaned[start:end + 1])
+
+
+def build_lesson_factory_prompt(topic: Dict[str, Any]) -> str:
+    return f"""
+You are creating content for a premium AI architecture study platform called AI Study Assistance.
+
+Critical product rule:
+NO THIN TUTOR. The lesson must explain properly before assessment.
+
+Assessment rule:
+Do not evaluate anything that the lesson does not teach.
+
+Create one complete lesson package for the topic below.
+
+Topic:
+{json.dumps(topic, ensure_ascii=False)}
+
+Return valid JSON only. No markdown. No commentary.
+
+Required JSON shape:
+{{
+  "lesson": {{
+    "title": "...",
+    "content": {{
+      "executive_intuition": "...",
+      "plain_english": "...",
+      "step_by_step": ["...", "..."],
+      "concrete_example": "...",
+      "architecture_translation": "...",
+      "common_mistakes": ["...", "..."],
+      "failure_mode": "...",
+      "decision_checklist": ["...", "..."],
+      "worked_scenario": "..."
+    }},
+    "source_links": [
+      {{"title": "Official or open learning source", "url": "https://..."}}
+    ],
+    "deeper_reading": [
+      {{"title": "Optional deeper reading", "url": "https://..."}}
+    ]
+  }},
+  "assessment": {{
+    "title": "...",
+    "mcqs": [
+      {{
+        "question": "...",
+        "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
+        "correct_answer": "A",
+        "explanation": "...",
+        "is_critical": true
+      }}
+    ],
+    "descriptive": {{
+      "question": "...",
+      "explanation": "...",
+      "rubric": {{
+        "min_star_3": "...",
+        "min_star_4": "...",
+        "min_star_5": "..."
+      }}
+    }}
+  }}
+}}
+
+Hard requirements:
+- Exactly 10 MCQs.
+- At least 3 MCQs must be critical.
+- MCQ options must be A, B, C, D.
+- The descriptive question must test architect-level reasoning.
+- Lesson must include all required content sections.
+- Lesson must connect upward to higher AI systems and downward to foundations.
+- Lesson must include production failure modes.
+- Keep language direct, practical, and architecture-focused.
+""".strip()
+
+
+def validate_lesson_package(package: Dict[str, Any]) -> List[str]:
+    errors = []
+
+    lesson = package.get("lesson", {})
+    content = lesson.get("content", {})
+    assessment = package.get("assessment", {})
+    mcqs = assessment.get("mcqs", [])
+    descriptive = assessment.get("descriptive", {})
+
+    required_sections = [
+        "executive_intuition",
+        "plain_english",
+        "step_by_step",
+        "concrete_example",
+        "architecture_translation",
+        "common_mistakes",
+        "failure_mode",
+        "decision_checklist",
+        "worked_scenario",
+    ]
+
+    for section in required_sections:
+        if section not in content or not content[section]:
+            errors.append(f"Missing or empty lesson section: {section}")
+
+    if len(mcqs) != 10:
+        errors.append(f"Expected exactly 10 MCQs, found {len(mcqs)}.")
+
+    critical_count = 0
+    for i, q in enumerate(mcqs, start=1):
+        options = q.get("options", {})
+        if set(options.keys()) != {"A", "B", "C", "D"}:
+            errors.append(f"MCQ {i} must have options A, B, C, D.")
+        if q.get("correct_answer") not in {"A", "B", "C", "D"}:
+            errors.append(f"MCQ {i} has invalid correct_answer.")
+        if q.get("is_critical"):
+            critical_count += 1
+        if not q.get("explanation"):
+            errors.append(f"MCQ {i} is missing explanation.")
+
+    if critical_count < 3:
+        errors.append("At least 3 MCQs must be marked critical.")
+
+    if not descriptive.get("question"):
+        errors.append("Missing descriptive question.")
+
+    if not descriptive.get("rubric"):
+        errors.append("Missing descriptive rubric.")
+
+    return errors
+
+
+def generate_lesson_package(topic: Dict[str, Any]) -> Dict[str, Any]:
+    client = get_openai_client()
+    if client is None:
+        raise RuntimeError("OPENAI_API_KEY is missing.")
+
+    model = secret_value("OPENAI_MODEL", "")
+    if not model:
+        raise RuntimeError("OPENAI_MODEL is missing.")
+
+    response = client.responses.create(
+        model=model,
+        input=build_lesson_factory_prompt(topic),
+    )
+
+    raw_text = response.output_text
+    package = extract_json_object(raw_text)
+    errors = validate_lesson_package(package)
+
+    if errors:
+        raise ValueError("Lesson package failed validation:\n" + "\n".join(errors))
+
+    return package
+
+
+def save_lesson_package(topic: Dict[str, Any], package: Dict[str, Any]) -> Dict[str, str]:
+    db = get_supabase_admin_client()
+
+    topic_id = topic["id"]
+    lesson_id = f"lesson_{topic_id}_001"
+    assessment_id = f"asm_{topic_id}_001"
+
+    lesson = package["lesson"]
+    assessment = package["assessment"]
+
+    db.table("lessons").upsert(
+        {
+            "id": lesson_id,
+            "topic_id": topic_id,
+            "title": lesson.get("title", topic["title"]),
+            "lesson_type": "normal",
+            "content": lesson["content"],
+            "source_links": lesson.get("source_links", []),
+            "deeper_reading": lesson.get("deeper_reading", []),
+            "status": "published",
+            "version": 1,
+        }
+    ).execute()
+
+    db.table("assessments").upsert(
+        {
+            "id": assessment_id,
+            "topic_id": topic_id,
+            "lesson_id": lesson_id,
+            "title": assessment.get("title", f"Assessment: {topic['title']}"),
+            "pass_mcq_percent": 70,
+            "descriptive_min_stars": 3,
+        }
+    ).execute()
+
+    db.table("assessment_questions").delete().eq("assessment_id", assessment_id).execute()
+
+    question_rows = []
+
+    for i, q in enumerate(assessment["mcqs"], start=1):
+        question_rows.append(
+            {
+                "id": f"q_{topic_id}_{i:03}",
+                "assessment_id": assessment_id,
+                "question_type": "mcq",
+                "question": q["question"],
+                "options": q["options"],
+                "correct_answer": q["correct_answer"],
+                "explanation": q["explanation"],
+                "is_critical": bool(q.get("is_critical", False)),
+                "rubric": {},
+                "sort_order": i,
+            }
+        )
+
+    descriptive = assessment["descriptive"]
+    question_rows.append(
+        {
+            "id": f"dq_{topic_id}_001",
+            "assessment_id": assessment_id,
+            "question_type": "descriptive",
+            "question": descriptive["question"],
+            "options": None,
+            "correct_answer": None,
+            "explanation": descriptive.get("explanation", ""),
+            "is_critical": False,
+            "rubric": descriptive.get("rubric", {}),
+            "sort_order": 11,
+        }
+    )
+
+    db.table("assessment_questions").insert(question_rows).execute()
+
+    return {
+        "lesson_id": lesson_id,
+        "assessment_id": assessment_id,
+        "questions_saved": str(len(question_rows)),
+    }
+
+
+def page_lesson_factory(topics: List[Dict[str, Any]]) -> None:
+    st.title("Lesson Factory")
+    st.caption("Generate deep tutor lessons and aligned assessments from onion topics.")
+
+    if not topics:
+        st.error("No topics found.")
+        return
+
+    st.warning(
+        "Use this carefully. This writes generated lessons and assessments into Supabase. "
+        "Generate one topic at a time, review, then move to the next."
+    )
+
+    topic_labels = {
+        f"{t['sort_order']}. {t['domain']} · {t['title']}": t["id"]
+        for t in topics
+    }
+
+    selected_label = st.selectbox("Select topic to generate", list(topic_labels.keys()))
+    selected_topic_id = topic_labels[selected_label]
+    topic = fetch_topic(selected_topic_id)
+
+    if not topic:
+        st.error("Selected topic not found.")
+        return
+
+    existing_lesson = fetch_lesson(topic["id"])
+    existing_assessment = fetch_assessment(topic["id"])
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Topic", topic["title"])
+    c2.metric("Lesson", "Exists" if existing_lesson else "Missing")
+    c3.metric("Assessment", "Exists" if existing_assessment else "Missing")
+
+    st.markdown("### Topic glue")
+    st.markdown(f"**Summary:** {topic.get('summary', '')}")
+    st.markdown(f"**Architect relevance:** {topic.get('architect_relevance', '')}")
+
+    overwrite = st.checkbox("Overwrite existing lesson and assessment", value=False)
+
+    can_generate = overwrite or not existing_lesson or not existing_assessment
+
+    if not can_generate:
+        st.info("Lesson and assessment already exist. Enable overwrite if you want to regenerate.")
+        return
+
+    if st.button("Generate lesson + assessment", type="primary"):
+        with st.spinner("Generating deep lesson and aligned assessment..."):
+            try:
+                package = generate_lesson_package(topic)
+                save_result = save_lesson_package(topic, package)
+                st.session_state["last_generated_package"] = package
+                st.success(
+                    f"Saved lesson package. Lesson: {save_result['lesson_id']}, "
+                    f"Assessment: {save_result['assessment_id']}, "
+                    f"Questions: {save_result['questions_saved']}."
+                )
+            except Exception as exc:
+                st.error("Generation failed.")
+                st.code(str(exc))
+
+    if st.session_state.get("last_generated_package"):
+        with st.expander("Preview last generated package", expanded=False):
+            st.json(st.session_state["last_generated_package"])
 
 def render_card(title: str, body: str) -> None:
     st.markdown(
@@ -673,9 +994,9 @@ def main() -> None:
 
     st.sidebar.markdown("---")
     page = st.sidebar.radio(
-        "Navigate",
-        ["Home", "Topic Map", "Lesson", "Assessment", "Notes", "Progress"],
-    )
+    "Navigate",
+    ["Home", "Topic Map", "Lesson", "Assessment", "Notes", "Progress", "Lesson Factory"],
+)
 
     if page == "Home":
         page_home(topics)
