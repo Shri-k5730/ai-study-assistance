@@ -83,13 +83,18 @@ CSS = """
         background: #111111;
     }
 
-    section[data-testid="stSidebar"] * {
-        color: #F5F5F5 !important;
-    }
+section[data-testid="stSidebar"] {
+    background: #111111;
+}
 
-    div[data-baseweb="select"] * {
-        color: #111111 !important;
-    }
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span {
+    color: #F5F5F5 !important;
+}
 
     div[data-testid="stMetric"] {
         background: #FFFFFF;
