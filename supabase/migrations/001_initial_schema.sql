@@ -1,3 +1,4 @@
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS topics (
@@ -411,3 +412,17 @@ VALUES
     'Useful for implementation concepts around models, tools, and evaluation.'
 )
 ON CONFLICT DO NOTHING;
+-- Allow the Streamlit app's anon key to read learning content
+GRANT SELECT ON public.topics TO anon;
+GRANT SELECT ON public.lessons TO anon;
+GRANT SELECT ON public.assessments TO anon;
+GRANT SELECT ON public.assessment_questions TO anon;
+GRANT SELECT ON public.resources TO anon;
+
+-- Allow the app to save attempts and notes
+GRANT INSERT ON public.attempts TO anon;
+GRANT INSERT ON public.notes TO anon;
+
+-- Allow progress and notes screens to read saved data
+GRANT SELECT ON public.attempts TO anon;
+GRANT SELECT ON public.notes TO anon;
