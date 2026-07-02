@@ -16,37 +16,86 @@ st.set_page_config(
 
 CSS = """
 <style>
-    .main { background: #fafafa; }
-    .block-container { padding-top: 2rem; max-width: 1180px; }
-    h1, h2, h3 { letter-spacing: -0.02em; }
+    html, body, [class*="css"] {
+        color: #111111;
+    }
+
+    .stApp {
+        background: #F7F7F5;
+        color: #111111;
+    }
+
+    .block-container {
+        padding-top: 2rem;
+        max-width: 1180px;
+    }
+
+    h1, h2, h3, h4, h5, h6, p, li, span, div {
+        letter-spacing: -0.01em;
+    }
+
     .asa-card {
-        border: 1px solid #e5e5e5;
+        border: 1px solid #DADADA;
         border-radius: 18px;
         padding: 20px 22px;
-        background: white;
+        background: #FFFFFF;
+        color: #111111 !important;
         margin-bottom: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
     }
+
+    .asa-card h1,
+    .asa-card h2,
+    .asa-card h3,
+    .asa-card p,
+    .asa-card strong,
+    .asa-card span {
+        color: #111111 !important;
+    }
+
     .asa-small {
-        color: #5f6368;
+        color: #555555 !important;
         font-size: 0.92rem;
     }
+
     .asa-pill {
         display: inline-block;
-        border: 1px solid #d6d6d6;
+        border: 1px solid #CFCFCF;
         border-radius: 999px;
-        padding: 4px 10px;
-        margin: 2px 4px 2px 0;
+        padding: 5px 11px;
+        margin: 3px 5px 3px 0;
         font-size: 0.85rem;
-        background: #f7f7f7;
+        background: #F2F2F2;
+        color: #111111 !important;
     }
+
     .asa-critical {
         display: inline-block;
         border-radius: 999px;
         padding: 3px 9px;
         font-size: 0.78rem;
-        background: #111;
-        color: #fff;
+        background: #111111;
+        color: #FFFFFF !important;
         margin-left: 6px;
+    }
+
+    section[data-testid="stSidebar"] {
+        background: #111111;
+    }
+
+    section[data-testid="stSidebar"] * {
+        color: #F5F5F5 !important;
+    }
+
+    div[data-baseweb="select"] * {
+        color: #111111 !important;
+    }
+
+    div[data-testid="stMetric"] {
+        background: #FFFFFF;
+        border: 1px solid #E0E0E0;
+        padding: 14px;
+        border-radius: 16px;
     }
 </style>
 """
