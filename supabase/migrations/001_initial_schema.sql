@@ -426,3 +426,91 @@ GRANT INSERT ON public.notes TO anon;
 -- Allow progress and notes screens to read saved data
 GRANT SELECT ON public.attempts TO anon;
 GRANT SELECT ON public.notes TO anon;
+-- Give anon access to the public schema
+GRANT USAGE ON SCHEMA public TO anon;
+
+-- Content read access
+GRANT SELECT ON public.topics TO anon;
+GRANT SELECT ON public.lessons TO anon;
+GRANT SELECT ON public.assessments TO anon;
+GRANT SELECT ON public.assessment_questions TO anon;
+GRANT SELECT ON public.resources TO anon;
+
+-- Attempts and notes access
+GRANT SELECT, INSERT ON public.attempts TO anon;
+GRANT SELECT, INSERT ON public.notes TO anon;
+
+-- Enable RLS
+ALTER TABLE public.topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assessment_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
+
+-- Recreate read policies
+DROP POLICY IF EXISTS "anon can read topics" ON public.topics;
+CREATE POLICY "anon can read topics"
+ON public.topics
+FOR SELECT
+TO anon
+USING (true);
+
+DROP POLICY IF EXISTS "anon can read published lessons" ON public.lessons;
+CREATE POLICY "anon can read published lessons"
+ON public.lessons
+FOR SELECT
+TO anon
+USING (status = 'published');
+
+DROP POLICY IF EXISTS "anon can read assessments" ON public.assessments;
+CREATE POLICY "anon can read assessments"
+ON public.assessments
+FOR SELECT
+TO anon
+USING (true);
+
+DROP POLICY IF EXISTS "anon can read assessment questions" ON public.assessment_questions;
+CREATE POLICY "anon can read assessment questions"
+ON public.assessment_questions
+FOR SELECT
+TO anon
+USING (true);
+
+DROP POLICY IF EXISTS "anon can read resources" ON public.resources;
+CREATE POLICY "anon can read resources"
+ON public.resources
+FOR SELECT
+TO anon
+USING (true);
+
+-- Attempts policies
+DROP POLICY IF EXISTS "anon can insert attempts" ON public.attempts;
+CREATE POLICY "anon can insert attempts"
+ON public.attempts
+FOR INSERT
+TO anon
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "anon can read attempts" ON public.attempts;
+CREATE POLICY "anon can read attempts"
+ON public.attempts
+FOR SELECT
+TO anon
+USING (true);
+
+-- Notes policies
+DROP POLICY IF EXISTS "anon can insert notes" ON public.notes;
+CREATE POLICY "anon can insert notes"
+ON public.notes
+FOR INSERT
+TO anon
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "anon can read notes" ON public.notes;
+CREATE POLICY "anon can read notes"
+ON public.notes
+FOR SELECT
+TO anon
+USING (true);
