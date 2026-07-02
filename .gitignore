@@ -13,7 +13,7 @@ venv/
 .vscode/
 .idea/
 
-# Local data
+# Local data/logs
 *.db
 *.sqlite
 *.log
