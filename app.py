@@ -1013,6 +1013,8 @@ def main() -> None:
             page_notes(topic, lesson)
     elif page == "Progress":
         page_progress()
+    elif page == "Lesson Factory":
+        page_lesson_factory(topics)
 
 
 if __name__ == "__main__":
