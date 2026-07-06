@@ -12,7 +12,8 @@ from supabase import create_client
 st.set_page_config(
     page_title="AI Study Assistance",
     page_icon="🧠",
-    layout="wide",
+    layout="centered",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -23,35 +24,53 @@ CSS = """
         color: #111111 !important;
     }
 
-    [data-testid="stAppViewContainer"] {
-        background: #F7F7F5 !important;
-    }
-
+    [data-testid="stAppViewContainer"],
     [data-testid="stHeader"] {
         background: #F7F7F5 !important;
     }
 
     .block-container {
-        padding-top: 2rem;
-        max-width: 1180px;
+        padding-top: 1.25rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 900px;
     }
 
-    h1, h2, h3, h4, h5, h6 {
+    h1 {
+        color: #111111 !important;
+        letter-spacing: -0.04em;
+        font-size: clamp(1.65rem, 7vw, 2.4rem) !important;
+        line-height: 1.08 !important;
+    }
+
+    h2 {
         color: #111111 !important;
         letter-spacing: -0.03em;
+        font-size: clamp(1.25rem, 5vw, 1.7rem) !important;
+    }
+
+    h3 {
+        color: #111111 !important;
+        letter-spacing: -0.02em;
+        font-size: clamp(1.05rem, 4vw, 1.35rem) !important;
     }
 
     p, li, span, div {
         letter-spacing: -0.01em;
     }
 
+    p, li {
+        font-size: 1rem !important;
+        line-height: 1.55 !important;
+    }
+
     .asa-card {
         border: 1px solid #DADADA;
         border-radius: 18px;
-        padding: 20px 22px;
+        padding: 18px 18px;
         background: #FFFFFF;
         color: #111111 !important;
-        margin-bottom: 16px;
+        margin-bottom: 14px;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
     }
 
@@ -74,11 +93,12 @@ CSS = """
         display: inline-block;
         border: 1px solid #CFCFCF;
         border-radius: 999px;
-        padding: 5px 11px;
-        margin: 3px 5px 3px 0;
-        font-size: 0.85rem;
+        padding: 6px 11px;
+        margin: 4px 5px 4px 0;
+        font-size: 0.84rem;
         background: #F2F2F2;
         color: #111111 !important;
+        line-height: 1.25;
     }
 
     .asa-critical {
@@ -114,7 +134,7 @@ CSS = """
     div[data-testid="stMetric"] {
         background: #FFFFFF !important;
         border: 1px solid #DADADA !important;
-        padding: 18px 20px !important;
+        padding: 16px 16px !important;
         border-radius: 18px !important;
         box-shadow: 0 8px 22px rgba(0, 0, 0, 0.04);
     }
@@ -123,7 +143,7 @@ CSS = """
     div[data-testid="stMetric"] label p {
         color: #555555 !important;
         opacity: 1 !important;
-        font-size: 0.95rem !important;
+        font-size: 0.9rem !important;
     }
 
     div[data-testid="stMetricValue"],
@@ -135,6 +155,75 @@ CSS = """
 
     div[data-testid="stAlert"] {
         border-radius: 14px !important;
+    }
+
+    .stButton > button,
+    button[kind="primary"],
+    button[kind="secondary"] {
+        min-height: 44px !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+    }
+
+    textarea,
+    input {
+        font-size: 16px !important;
+    }
+
+    div[role="radiogroup"] label {
+        background: #FFFFFF !important;
+        border: 1px solid #DADADA !important;
+        border-radius: 14px !important;
+        padding: 10px 12px !important;
+        margin-bottom: 8px !important;
+    }
+
+    div[data-testid="stExpander"] {
+        background: #FFFFFF !important;
+        border-radius: 16px !important;
+        border: 1px solid #E0E0E0 !important;
+        margin-bottom: 10px !important;
+    }
+
+    [data-testid="stDataFrame"] {
+        overflow-x: auto !important;
+    }
+
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 0.75rem;
+            padding-left: 0.85rem;
+            padding-right: 0.85rem;
+            max-width: 100%;
+        }
+
+        .asa-card {
+            padding: 15px 15px;
+            border-radius: 16px;
+        }
+
+        div[data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }
+
+        div[data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 0.5rem !important;
+        }
+
+        div[data-testid="stMetric"] {
+            margin-bottom: 8px !important;
+        }
+
+        .stRadio label {
+            font-size: 0.98rem !important;
+        }
+
+        iframe {
+            max-width: 100% !important;
+        }
     }
 </style>
 """
@@ -164,6 +253,7 @@ def require_password() -> None:
 
     st.title("AI Study Assistance")
     st.caption("Private access")
+
     entered = st.text_input("Enter app password", type="password")
 
     if st.button("Enter", type="primary"):
@@ -686,24 +776,20 @@ def pill_list(items: Any) -> str:
     return " ".join([f'<span class="asa-pill">{item}</span>' for item in items])
 
 
+def build_topic_label(topic: Dict[str, Any]) -> str:
+    return f"{topic.get('domain', '')} · {topic.get('title', '')}"
+
+
 def select_active_topic(topics: List[Dict[str, Any]]) -> Optional[str]:
     if not topics:
         return None
 
-    if len(topics) == 1:
-        active_topic = topics[0]
-        st.session_state["active_topic_id"] = active_topic["id"]
-        st.sidebar.markdown("### Active topic")
-        st.sidebar.caption(active_topic["title"])
-        return active_topic["id"]
+    sorted_topics = sorted(topics, key=lambda t: t.get("sort_order", 0))
 
     if "active_topic_id" not in st.session_state:
-        st.session_state["active_topic_id"] = topics[0]["id"]
+        st.session_state["active_topic_id"] = sorted_topics[0]["id"]
 
-    topic_labels = {
-        f"{t['domain']} · {t['title']}": t["id"]
-        for t in topics
-    }
+    topic_labels = {build_topic_label(t): t["id"] for t in sorted_topics}
 
     current_label = next(
         (
@@ -715,42 +801,41 @@ def select_active_topic(topics: List[Dict[str, Any]]) -> Optional[str]:
     )
 
     st.sidebar.markdown("### Active topic")
+    st.sidebar.caption(current_label)
+    st.sidebar.caption("Use the Study topic selector in the main screen on mobile.")
 
-    selected_label = st.sidebar.selectbox(
-        "Choose topic",
+    selected_label = st.selectbox(
+        "Study topic",
         list(topic_labels.keys()),
         index=list(topic_labels.keys()).index(current_label),
-        label_visibility="collapsed",
+        key="active_topic_selector",
     )
 
     st.session_state["active_topic_id"] = topic_labels[selected_label]
     return st.session_state["active_topic_id"]
 
 
-def page_home(topics: List[Dict[str, Any]]) -> None:
+def page_dashboard(topics: List[Dict[str, Any]]) -> None:
     st.title("AI Study Assistance")
-    st.caption("Deep AI architecture learning. No thin tutor. No childish gamification. No forced locks.")
+    st.caption("Deep AI architecture learning. No thin tutor. No forced locks.")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Topics loaded", len(topics))
-    c2.metric("Learning model", "Onion")
-    c3.metric("V1 spine", "Lesson → Assessment → Attempt")
+    st.markdown(
+        f"""
+        <div class="asa-card">
+            <h3>Today</h3>
+            <p><strong>{len(topics)}</strong> onion topics loaded.</p>
+            <p>Pick a topic, read the lesson, save your status, then assess only what was taught.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.markdown("### Product principle")
     render_card(
         "No thin tutor",
         "Every lesson must explain the concept, connect it upward to AI architecture, connect it downward to foundations, and expose production failure modes before assessment.",
     )
 
-    st.markdown("### Current vertical slice")
-    st.info(
-        "This build intentionally starts with one complete loop. "
-        "Once stable, add lessons gradually. Do not build a complex progression engine."
-    )
-
-
-def page_topic_map(topics: List[Dict[str, Any]]) -> None:
-    st.title("Onion Topic Map")
+    st.markdown("## Onion Topic Map")
 
     if not topics:
         st.error("No topics found. Run the initial Supabase SQL migration first.")
@@ -759,7 +844,7 @@ def page_topic_map(topics: List[Dict[str, Any]]) -> None:
     df = pd.DataFrame(topics)
 
     for domain, group in df.groupby("domain", sort=False):
-        st.markdown(f"## {domain}")
+        st.markdown(f"### {domain}")
 
         for _, row in group.sort_values("sort_order").iterrows():
             st.markdown(
@@ -781,17 +866,14 @@ def page_lesson(topic: Dict[str, Any], lesson: Optional[Dict[str, Any]]) -> None
     st.title(topic["title"])
     st.caption(f"{topic['domain']} · {topic.get('onion_layer', '')}")
 
-    c1, _ = st.columns([1, 3])
-
-    with c1:
-        if st.button("Save study status"):
-            save_topic_state(
-                topic_id=topic["id"],
-                active_page="Lesson",
-                status="studying",
-                payload={"lesson_id": lesson["id"] if lesson else None},
-            )
-            st.success("Study status saved.")
+    if st.button("Save study status"):
+        save_topic_state(
+            topic_id=topic["id"],
+            active_page="Lesson",
+            status="studying",
+            payload={"lesson_id": lesson["id"] if lesson else None},
+        )
+        st.success("Study status saved.")
 
     st.markdown(
         f"""
@@ -807,6 +889,7 @@ def page_lesson(topic: Dict[str, Any], lesson: Optional[Dict[str, Any]]) -> None
 
     if not lesson:
         st.error("No published lesson found for this topic.")
+        st.info("Use Lesson Factory to generate the lesson for this topic.")
         return
 
     content = lesson.get("content", {})
@@ -898,6 +981,11 @@ def page_assessment(topic: Dict[str, Any], lesson: Optional[Dict[str, Any]]) -> 
 
             options = q.get("options") or {}
             keys = sorted(options.keys())
+
+            if set(keys) != {"A", "B", "C", "D"}:
+                st.error(f"Question {q.get('id')} has invalid options. Expected A, B, C, D.")
+                continue
+
             saved_answer = saved_mcq_answers.get(q["id"])
             default_index = keys.index(saved_answer) if saved_answer in keys else None
 
@@ -1097,12 +1185,27 @@ def page_progress() -> None:
 
     if states:
         st.markdown("### Current study state")
-        state_df = pd.DataFrame(states)
-        st.dataframe(
-            state_df[["updated_at", "topic_id", "active_page", "status"]],
-            use_container_width=True,
-            hide_index=True,
-        )
+
+        for state in states[:5]:
+            st.markdown(
+                f"""
+                <div class="asa-card">
+                    <p class="asa-small">{state.get('updated_at', '')}</p>
+                    <h3>{state.get('topic_id', '')}</h3>
+                    <p><strong>Status:</strong> {state.get('status', '')}</p>
+                    <p><strong>Last page:</strong> {state.get('active_page', '')}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with st.expander("Show state table", expanded=False):
+            state_df = pd.DataFrame(states)
+            st.dataframe(
+                state_df[["updated_at", "topic_id", "active_page", "status"]],
+                use_container_width=True,
+                hide_index=True,
+            )
 
     attempts = fetch_rows("attempts", "created_at")
 
@@ -1119,20 +1222,38 @@ def page_progress() -> None:
     c2.metric("Passes", int(df["passed"].sum()))
     c3.metric("Average MCQ", f"{round(df['mcq_score_percent'].mean(), 1)}%")
 
-    st.dataframe(
-        latest[
-            [
-                "created_at",
-                "topic_id",
-                "mcq_score_percent",
-                "critical_pass",
-                "descriptive_stars",
-                "passed",
-            ]
-        ],
-        use_container_width=True,
-        hide_index=True,
-    )
+    st.markdown("### Recent attempts")
+
+    for _, attempt in latest.head(5).iterrows():
+        st.markdown(
+            f"""
+            <div class="asa-card">
+                <p class="asa-small">{attempt.get('created_at', '')}</p>
+                <h3>{attempt.get('topic_id', '')}</h3>
+                <p><strong>MCQ:</strong> {attempt.get('mcq_score_percent', '')}%</p>
+                <p><strong>Critical:</strong> {attempt.get('critical_pass', '')}</p>
+                <p><strong>Descriptive:</strong> {attempt.get('descriptive_stars', '')}★</p>
+                <p><strong>Passed:</strong> {attempt.get('passed', '')}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with st.expander("Show attempts table", expanded=False):
+        st.dataframe(
+            latest[
+                [
+                    "created_at",
+                    "topic_id",
+                    "mcq_score_percent",
+                    "critical_pass",
+                    "descriptive_stars",
+                    "passed",
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def page_lesson_factory(topics: List[Dict[str, Any]]) -> None:
@@ -1150,7 +1271,7 @@ def page_lesson_factory(topics: List[Dict[str, Any]]) -> None:
 
     topic_labels = {
         f"{t['sort_order']}. {t['domain']} · {t['title']}": t["id"]
-        for t in topics
+        for t in sorted(topics, key=lambda x: x.get("sort_order", 0))
     }
 
     selected_label = st.selectbox("Select topic to generate", list(topic_labels.keys()))
@@ -1216,26 +1337,32 @@ def main() -> None:
     topic = fetch_topic(active_topic_id) if active_topic_id else None
     lesson = fetch_lesson(active_topic_id) if active_topic_id else None
 
-    st.sidebar.markdown("---")
+    pages = [
+        "Dashboard",
+        "Lesson",
+        "Assessment",
+        "Notes",
+        "Progress",
+        "Lesson Factory",
+    ]
 
-    page = st.sidebar.radio(
-        "Navigate",
-        [
-            "Home",
-            "Topic Map",
-            "Lesson",
-            "Assessment",
-            "Notes",
-            "Progress",
-            "Lesson Factory",
-        ],
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Navigation is available from the top selector for mobile use.")
+
+    if "current_page" not in st.session_state:
+        st.session_state["current_page"] = "Dashboard"
+
+    page = st.selectbox(
+        "Go to",
+        pages,
+        index=pages.index(st.session_state.get("current_page", "Dashboard")),
+        key="page_selector",
     )
 
-    if page == "Home":
-        page_home(topics)
+    st.session_state["current_page"] = page
 
-    elif page == "Topic Map":
-        page_topic_map(topics)
+    if page == "Dashboard":
+        page_dashboard(topics)
 
     elif page == "Lesson":
         if topic:
